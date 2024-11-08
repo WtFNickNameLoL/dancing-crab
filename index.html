@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dancing Crab</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+        body { margin: 0; overflow: hidden; touch-action: none; }
+        canvas {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(#4AB3E6, #87CEEB);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="crabCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('crabCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Устанавливаем размер canvas под размер экрана
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        let x = canvas.width / 2;
+        let y = canvas.height - 100;
+        let direction = 1;
+        let clawAngle = 0;
+        let clawSpeed = 0.05;
+
+        // Пузырьки
+        class Bubble {
+            constructor() {
+                this.reset();
+            }
+            
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = canvas.height + 10;
+                this.speed = 1 + Math.random() * 2;
+                this.radius = 2 + Math.random() * 4;
+            }
+
+            update() {
+                this.y -= this.speed;
+                if (this.y < -10) this.reset();
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+                ctx.stroke();
+            }
+        }
+
+        // Создаем массив пузырьков
+        const bubbles = Array.from({length: 20}, () => new Bubble());
+
+        function drawCrab(x, y, clawAngle) {
+            // Тело краба
+            ctx.fillStyle = '#FF4500';
+            ctx.beginPath();
+            ctx.arc(x, y, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Глаза
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(x - 10, y - 10, 5, 0, Math.PI * 2);
+            ctx.arc(x + 10, y - 10, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Клешни
+            ctx.strokeStyle = '#FF4500';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(x - 30, y);
+            ctx.lineTo(x - 50 + Math.cos(clawAngle) * 10, y + Math.sin(clawAngle) * 10);
+            ctx.moveTo(x + 30, y);
+            ctx.lineTo(x + 50 + Math.cos(-clawAngle) * 10, y + Math.sin(-clawAngle) * 10);
+            ctx.stroke();
+
+            // Ножки
+            ctx.lineWidth = 4;
+            for(let i = 0; i < 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(x - 20, y + 10 + i * 10);
+                ctx.lineTo(x - 40, y + 20 + i * 10);
+                ctx.moveTo(x + 20, y + 10 + i * 10);
+                ctx.lineTo(x + 40, y + 20 + i * 10);
+                ctx.stroke();
+            }
+        }
+
+        function drawSand() {
+            ctx.fillStyle = '#F4D03F';
+            ctx.beginPath();
+            ctx.moveTo(0, canvas.height - 50);
+            ctx.lineTo(canvas.width, canvas.height - 30);
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.lineTo(0, canvas.height);
+            ctx.closePath();
+            ctx.fill();
+        }
+
+        // Обработка тач-событий
+        let touchStartX = 0;
+        
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartX = e.touches[0].clientX;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touchX = e.touches[0].clientX;
+            const diff = touchX - touchStartX;
+            
+            x += diff / 5;
+            if(x < 50) x = 50;
+            if(x > canvas.width - 50) x = canvas.width - 50;
+            
+            touchStartX = touchX;
+        });
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Рисуем пузырьки
+            bubbles.forEach(bubble => {
+                bubble.update();
+                bubble.draw();
+            });
+
+            // Рисуем песок
+            drawSand();
+            
+            // Анимация клешней
+            clawAngle += clawSpeed;
+            if(Math.abs(clawAngle) > 0.3) clawSpeed *= -1;
+            
+            drawCrab(x, y, clawAngle);
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
