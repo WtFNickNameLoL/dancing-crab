@@ -18,7 +18,6 @@
         const canvas = document.getElementById('crabCanvas');
         const ctx = canvas.getContext('2d');
 
-        // Устанавливаем размер canvas под размер экрана
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -27,12 +26,50 @@
         window.addEventListener('resize', resizeCanvas);
 
         let x = canvas.width / 2;
-        let y = canvas.height - 100;
+        let y = canvas.height / 2; // Теперь краб по центру
         let direction = 1;
         let clawAngle = 0;
         let clawSpeed = 0.05;
+        let isBeingCaptured = false;
+        let tentacleY = canvas.height;
+        let captureProgress = 0;
 
-        // Пузырьки
+        // Щупальце
+        class Tentacle {
+            constructor() {
+                this.segments = 10;
+                this.points = Array(this.segments).fill().map(() => ({x: 0, y: 0}));
+                this.angle = 0;
+            }
+
+            update(targetX, targetY) {
+                const amplitude = 20;
+                const frequency = 0.1;
+                
+                this.points.forEach((point, i) => {
+                    const t = Date.now() * 0.001 + i;
+                    point.x = targetX + Math.sin(t * frequency) * amplitude;
+                    point.y = targetY - i * 30;
+                });
+            }
+
+            draw() {
+                ctx.strokeStyle = '#800080';
+                ctx.lineWidth = 15;
+                ctx.beginPath();
+                ctx.moveTo(this.points[0].x, this.points[0].y);
+                
+                for(let i = 1; i < this.points.length; i++) {
+                    ctx.lineTo(this.points[i].x, this.points[i].y);
+                }
+                
+                ctx.stroke();
+            }
+        }
+
+        const leftTentacle = new Tentacle();
+        const rightTentacle = new Tentacle();
+
         class Bubble {
             constructor() {
                 this.reset();
@@ -58,24 +95,20 @@
             }
         }
 
-        // Создаем массив пузырьков
         const bubbles = Array.from({length: 20}, () => new Bubble());
 
         function drawCrab(x, y, clawAngle) {
-            // Тело краба
             ctx.fillStyle = '#FF4500';
             ctx.beginPath();
             ctx.arc(x, y, 30, 0, Math.PI * 2);
             ctx.fill();
 
-            // Глаза
             ctx.fillStyle = 'black';
             ctx.beginPath();
             ctx.arc(x - 10, y - 10, 5, 0, Math.PI * 2);
             ctx.arc(x + 10, y - 10, 5, 0, Math.PI * 2);
             ctx.fill();
 
-            // Клешни
             ctx.strokeStyle = '#FF4500';
             ctx.lineWidth = 8;
             ctx.beginPath();
@@ -85,7 +118,6 @@
             ctx.lineTo(x + 50 + Math.cos(-clawAngle) * 10, y + Math.sin(-clawAngle) * 10);
             ctx.stroke();
 
-            // Ножки
             ctx.lineWidth = 4;
             for(let i = 0; i < 3; i++) {
                 ctx.beginPath();
@@ -108,7 +140,6 @@
             ctx.fill();
         }
 
-        // Обработка тач-событий
         let touchStartX = 0;
         
         canvas.addEventListener('touchstart', (e) => {
@@ -120,26 +151,50 @@
             const touchX = e.touches[0].clientX;
             const diff = touchX - touchStartX;
             
-            x += diff / 5;
-            if(x < 50) x = 50;
-            if(x > canvas.width - 50) x = canvas.width - 50;
+            if (!isBeingCaptured) {
+                x += diff / 5;
+                if(x < 50) startCapture();
+                if(x > canvas.width - 50) x = canvas.width - 50;
+            }
             
             touchStartX = touchX;
         });
 
+        function startCapture() {
+            if (!isBeingCaptured) {
+                isBeingCaptured = true;
+                captureProgress = 0;
+            }
+        }
+
         function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Рисуем пузырьки
             bubbles.forEach(bubble => {
                 bubble.update();
                 bubble.draw();
             });
 
-            // Рисуем песок
             drawSand();
             
-            // Анимация клешней
+            if (isBeingCaptured) {
+                captureProgress += 0.02;
+                y += 3;
+                x = Math.max(50, x - 1);
+                
+                leftTentacle.update(x - 20, y);
+                rightTentacle.update(x + 20, y);
+                
+                leftTentacle.draw();
+                rightTentacle.draw();
+                
+                if (y > canvas.height + 50) {
+                    isBeingCaptured = false;
+                    y = canvas.height / 2;
+                    x = canvas.width / 2;
+                }
+            }
+            
             clawAngle += clawSpeed;
             if(Math.abs(clawAngle) > 0.3) clawSpeed *= -1;
             
