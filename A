@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Touch Navigator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #touchArea {
+            width: 100vw;
+            height: 100vh;
+            background: linear-gradient(45deg, #2c3e50, #3498db);
+            position: relative;
+        }
+
+        #searchInput {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            width: 80%;
+            max-width: 300px;
+            z-index: 1000;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .site-bubble {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.3s;
+            animation: float 3s ease-in-out infinite;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            width: 100px;
+            height: 100px;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .site-bubble:active {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <input type="text" id="searchInput" placeholder="Поиск сайта...">
+    <div id="touchArea"></div>
+
+    <script>
+        class TouchNavigator {
+            constructor() {
+                this.touchArea = document.getElementById('touchArea');
+                this.sites = [
+                    {url: 'https://google.com', name: 'Google'},
+                    {url: 'https://youtube.com', name: 'YouTube'},
+                    {url: 'https://facebook.com', name: 'Facebook'},
+                    {url: 'https://twitter.com', name: 'Twitter'},
+                    {url: 'https://instagram.com', name: 'Instagram'},
+                    {url: 'https://reddit.com', name: 'Reddit'},
+                    {url: 'https://wikipedia.org', name: 'Wiki'},
+                    {url: 'https://github.com', name: 'GitHub'}
+                ];
+                this.init();
+            }
+
+            init() {
+                this.createBubbles();
+                this.addTouchListeners();
+                this.addSearch();
+            }
+
+            createBubbles() {
+                this.sites.forEach((site, index) => {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'site-bubble';
+                    bubble.style.left = `${Math.random() * (window.innerWidth - 100)}px`;
+                    bubble.style.top = `${Math.random() * (window.innerHeight - 100)}px`;
+                    bubble.innerHTML = site.name;
+                    bubble.addEventListener('click', () => window.open(site.url, '_blank'));
+                    this.touchArea.appendChild(bubble);
+                });
+            }
+
+            addTouchListeners() {
+                let activeElement = null;
+                let initialX, initialY;
+                let currentX, currentY;
+                let xOffset = 0;
+                let yOffset = 0;
+
+                const dragStart = (e) => {
+                    if (e.target.classList.contains('site-bubble')) {
+                        activeElement = e.target;
+                        
+                        if (e.type === "touchstart") {
+                            initialX = e.touches[0].clientX - xOffset;
+                            initialY = e.touches[0].clientY - yOffset;
+                        } else {
+                            initialX = e.clientX - xOffset;
+                            initialY = e.clientY - yOffset;
+                        }
+                    }
+                };
+
+                const dragEnd = () => {
+                    initialX = currentX;
+                    initialY = currentY;
+                    activeElement = null;
+                };
+
+                const drag = (e) => {
+                    if (activeElement) {
+                        e.preventDefault();
+
+                        if (e.type === "touchmove") {
+                            currentX = e.touches[0].clientX - initialX;
+                            currentY = e.touches[0].clientY - initialY;
+                        } else {
+                            currentX = e.clientX - initialX;
+                            currentY = e.clientY - initialY;
+                        }
+
+                        xOffset = currentX;
+                        yOffset = currentY;
+
+                        activeElement.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+                    }
+                };
+
+                this.touchArea.addEventListener("touchstart", dragStart, false);
+                this.touchArea.addEventListener("touchend", dragEnd, false);
+                this.touchArea.addEventListener("touchmove", drag, false);
+
+                this.touchArea.addEventListener("mousedown", dragStart, false);
+                this.touchArea.addEventListener("mouseup", dragEnd, false);
+                this.touchArea.addEventListener("mousemove", drag, false);
+            }
+
+            addSearch() {
+                const searchInput = document.getElementById('searchInput');
+                searchInput.addEventListener('input', (e) => {
+                    const value = e.target.value.toLowerCase();
+                    document.querySelectorAll('.site-bubble').forEach(bubble => {
+                        bubble.style.display = 
+                            bubble.innerHTML.toLowerCase().includes(value) ? 'flex' : 'none';
+                    });
+                });
+            }
+        }
+
+        // Инициализация после загрузки страницы
+        document.addEventListener('DOMContentLoaded', () => {
+            new TouchNavigator();
+        });
+    </script>
+</body>
+</html>
