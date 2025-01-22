@@ -1,34 +1,44 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ball Adventure</title>
+    <title>Ball Platformer 2.0</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: Arial;
+            background: #1a1a1a;
         }
         #gameCanvas {
-            background: #87CEEB;
+            background: linear-gradient(to bottom, #87CEEB 60%, #1a1a1a 100%);
         }
         #hud {
             position: fixed;
-            top: 10px;
-            left: 10px;
+            top: 20px;
+            left: 20px;
             color: white;
-            text-shadow: 2px 2px 2px black;
+            font-family: 'Arial', sans-serif;
+            z-index: 100;
+        }
+        .parallax {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
         }
     </style>
 </head>
 <body>
-    <div id="hud">Дистанция: <span id="distance">0</span>м</div>
-    <canvas id="gameCanvas"></canvas>
+    <div id="hud">
+        Уровень: <span id="level">1</span><br>
+        Пройдено: <span id="progress">0</span>%
+    </div>
     
-    <!-- Аудио элементы -->
-    <audio id="bgMusic" loop>
-        <source src="https://cdn.pixabay.com/download/audio/2022/02/22/audio_6e5d2d6728.mp3" type="audio/mpeg">
-    </audio>
-    <audio id="jumpSound" src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_3d3555d530.mp3"></audio>
+    <!-- Параллакс-слои -->
+    <div class="parallax" style="transform: translateZ(-3px) scale(4);">
+        <div id="stars"></div>
+    </div>
+    
+    <canvas id="gameCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById('gameCanvas');
@@ -36,204 +46,220 @@
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        // Система состояний игры
-        const GameState = {
-            current: 'playing',
-            lastCheckpoint: { x: 100, y: canvas.height - 150 },
-            distance: 0,
-            difficulty: 1
-        };
+        // Масштабирование
+        const SCALE = 0.7;
+        const BASE_JUMP = 20;
+        const MAX_JUMP_TIME = 500;
 
         // Игровые объекты
+        const game = {
+            level: 1,
+            progress: 0,
+            jumpStartTime: 0,
+            isJumping: false,
+            camera: { x: 0, y: 0 }
+        };
+
         const ball = {
-            x: 100,
-            y: canvas.height - 150,
-            radius: 20,
-            color: '#FF4500',
+            x: canvas.width * 0.3,
+            y: canvas.height * 0.6,
+            radius: 15 * SCALE,
+            color: '#FF6B6B',
             velocityX: 0,
             velocityY: 0,
-            jumpForce: -18,
             canJump: true
         };
 
         let platforms = [];
-        let obstacles = [];
-        let checkpoints = [];
+        let decorations = [];
 
-        // Инициализация
-        function initGame() {
-            platforms = [
-                {x: 0, y: canvas.height - 50, width: canvas.width, height: 50, type: 'ground'},
-                {x: 300, y: canvas.height - 200, width: 150, height: 20, type: 'normal'},
-                {x: 600, y: canvas.height - 300, width: 150, height: 20, type: 'normal'}
-            ];
-
-            obstacles = [];
-            checkpoints = [];
-            generateCheckpoint(500);
+        // Инициализация уровня
+        function initLevel(level) {
+            platforms = [];
+            decorations = [];
             
-            document.getElementById('bgMusic').play();
-        }
-
-        // Генерация чекпоинтов
-        function generateCheckpoint(x) {
-            checkpoints.push({
-                x: x,
-                y: canvas.height - 250,
-                width: 40,
-                height: 60,
-                activated: false
+            // Стартовая платформа
+            platforms.push({
+                x: 0,
+                y: canvas.height - 50,
+                width: canvas.width,
+                height: 40 * SCALE,
+                type: 'ground'
             });
+
+            // Генерация платформ
+            for(let i = 0; i < 10 + level*2; i++) {
+                platforms.push({
+                    x: 500 + i * 250 * SCALE,
+                    y: canvas.height - (200 + Math.random() * 300),
+                    width: 80 + Math.random() * 120 * SCALE,
+                    height: 15 * SCALE,
+                    type: 'normal'
+                });
+            }
+
+            // Декорации
+            for(let i = 0; i < 20; i++) {
+                decorations.push({
+                    x: Math.random() * 3000,
+                    y: canvas.height - 50 - Math.random() * 100,
+                    type: Math.random() > 0.5 ? 'bush' : 'rock',
+                    scale: SCALE * (0.8 + Math.random() * 0.4)
+                });
+            }
+
+            game.progress = 0;
+            updateHUD();
         }
 
-        // Физика и управление
-        const physics = {
-            gravity: 0.7,
-            friction: 0.85,
-            moveSpeed: 8,
-            cameraOffset: 0,
-            maxDifficulty: 5
-        };
-
-        // Обработка ввода
-        const keys = {};
-        window.addEventListener('keydown', e => {
-            keys[e.key] = true;
-            if (e.code === 'Space' && ball.canJump && GameState.current === 'playing') {
-                ball.velocityY = ball.jumpForce * (1 - GameState.difficulty*0.05);
-                document.getElementById('jumpSound').play();
-                ball.canJump = false;
+        // Параллакс-эффект
+        function createStars() {
+            const stars = document.getElementById('stars');
+            for(let i = 0; i < 200; i++) {
+                const star = document.createElement('div');
+                star.style.position = 'absolute';
+                star.style.width = '2px';
+                star.style.height = '2px';
+                star.style.backgroundColor = 'white';
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                stars.appendChild(star);
             }
-        });
-        window.addEventListener('keyup', e => keys[e.key] = false);
+        }
 
-        // Основной цикл
-        function update() {
-            if(GameState.current !== 'playing') return;
-
-            // Движение
-            ball.velocityX = keys['ArrowLeft'] ? -physics.moveSpeed : 
-                            keys['ArrowRight'] ? physics.moveSpeed : 0;
+        // Физика
+        function applyPhysics() {
+            // Гравитация
+            ball.velocityY += 0.6 * SCALE;
             
-            // Физика
-            ball.velocityY += physics.gravity * GameState.difficulty;
+            // Движение
             ball.x += ball.velocityX;
             ball.y += ball.velocityY;
 
-            // Проверка смерти
-            if(ball.y > canvas.height + 100) {
-                GameState.current = 'dead';
-                setTimeout(() => {
-                    ball.x = GameState.lastCheckpoint.x;
-                    ball.y = GameState.lastCheckpoint.y;
-                    GameState.current = 'playing';
-                }, 1000);
-                return;
-            }
-
-            // Коллизии с платформами
-            checkCollisions();
-            updateCamera();
-            updateDifficulty();
-            generateWorld();
+            // Коллизии
+            ball.canJump = false;
+            platforms.forEach(platform => {
+                if(checkCollision(platform)) {
+                    ball.velocityY = 0;
+                    ball.y = platform.y - ball.radius;
+                    ball.canJump = true;
+                }
+            });
         }
 
+        // Управление
+        window.addEventListener('keydown', e => {
+            if(e.code === 'Space' && ball.canJump) {
+                game.jumpStartTime = Date.now();
+                game.isJumping = true;
+            }
+        });
+
+        window.addEventListener('keyup', e => {
+            if(e.code === 'Space' && game.isJumping) {
+                const jumpDuration = Date.now() - game.jumpStartTime;
+                const jumpPower = Math.min(jumpDuration / MAX_JUMP_TIME, 1);
+                ball.velocityY = -BASE_JUMP * SCALE * (0.5 + jumpPower * 0.5);
+                ball.canJump = false;
+                game.isJumping = false;
+            }
+        });
+
+        // Отрисовка
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            // Рисование мира
-            ctx.save();
-            ctx.translate(-physics.cameraOffset, 0);
-
-            // Платформы
-            platforms.forEach(p => {
-                ctx.fillStyle = p.type === 'ground' ? '#228B22' : '#4682B4';
-                ctx.fillRect(p.x, p.y, p.width, p.height);
+            // Декорации
+            decorations.forEach(dec => {
+                ctx.save();
+                ctx.translate(dec.x - game.camera.x * 0.3, dec.y - game.camera.y);
+                ctx.scale(dec.scale, dec.scale);
+                
+                if(dec.type === 'bush') {
+                    ctx.fillStyle = '#2ECC71';
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 20, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.fillStyle = '#7F8C8D';
+                    ctx.fillRect(-15, -10, 30, 20);
+                }
+                
+                ctx.restore();
             });
 
-            // Чекпоинты
-            checkpoints.forEach(cp => {
-                ctx.fillStyle = cp.activated ? '#32CD32' : '#FFD700';
-                ctx.fillRect(cp.x, cp.y, cp.width, cp.height);
+            // Платформы
+            platforms.forEach(platform => {
+                ctx.fillStyle = platform.type === 'ground' ? '#27AE60' : '#2980B9';
+                ctx.fillRect(
+                    platform.x - game.camera.x,
+                    platform.y - game.camera.y,
+                    platform.width,
+                    platform.height
+                );
             });
 
             // Шарик
             ctx.beginPath();
-            ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI*2);
+            ctx.arc(
+                ball.x - game.camera.x,
+                ball.y - game.camera.y,
+                ball.radius,
+                0,
+                Math.PI * 2
+            );
             ctx.fillStyle = ball.color;
             ctx.fill();
-
-            ctx.restore();
-
-            // HUD
-            document.getElementById('distance').textContent = 
-                Math.floor(GameState.distance / 10);
         }
 
-        // Вспомогательные функции
-        function checkCollisions() {
-            ball.canJump = false;
-            
-            platforms.forEach(p => {
-                if(checkCollision(p)) {
-                    ball.velocityY = 0;
-                    ball.y = p.y - ball.radius;
-                    ball.canJump = true;
-                }
-            });
-
-            checkpoints.forEach(cp => {
-                if(!cp.activated && checkCollision(cp)) {
-                    cp.activated = true;
-                    GameState.lastCheckpoint = {x: cp.x + 20, y: cp.y - 50};
-                }
-            });
-        }
-
-        function checkCollision(obj) {
-            return ball.x + ball.radius > obj.x &&
-                   ball.x - ball.radius < obj.x + obj.width &&
-                   ball.y + ball.radius > obj.y &&
-                   ball.y - ball.radius < obj.y + obj.height;
-        }
-
-        function updateCamera() {
-            physics.cameraOffset = ball.x - canvas.width * 0.3;
-            GameState.distance = physics.cameraOffset;
-        }
-
-        function updateDifficulty() {
-            GameState.difficulty = 1 + Math.floor(GameState.distance / 3000);
-            if(GameState.difficulty > physics.maxDifficulty) {
-                GameState.difficulty = physics.maxDifficulty;
-            }
-        }
-
-        function generateWorld() {
-            // Генерация новых платформ и чекпоинтов
-            if(platforms[platforms.length-1].x < physics.cameraOffset + canvas.width + 500) {
-                const lastX = platforms[platforms.length-1].x;
-                platforms.push({
-                    x: lastX + 300 + Math.random() * 200,
-                    y: canvas.height - (100 + Math.random() * 300),
-                    width: 150 + Math.random() * 100,
-                    height: 20,
-                    type: 'normal'
-                });
-
-                if(Math.random() > 0.7) {
-                    generateCheckpoint(lastX + 400);
-                }
-            }
-        }
-
-        // Запуск игры
-        initGame();
+        // Основной цикл
         function gameLoop() {
-            update();
+            applyPhysics();
+            updateCamera();
+            checkProgress();
             draw();
             requestAnimationFrame(gameLoop);
         }
+
+        // Вспомогательные функции
+        function checkCollision(platform) {
+            return ball.x + ball.radius > platform.x &&
+                   ball.x - ball.radius < platform.x + platform.width &&
+                   ball.y + ball.radius > platform.y &&
+                   ball.y - ball.radius < platform.y + platform.height;
+        }
+
+        function updateCamera() {
+            game.camera.x = ball.x - canvas.width * 0.3;
+            game.camera.y = ball.y - canvas.height * 0.6;
+        }
+
+        function checkProgress() {
+            const currentPlatform = platforms.find(p => 
+                ball.x > p.x && ball.x < p.x + p.width
+            );
+            
+            if(currentPlatform) {
+                game.progress = Math.floor(
+                    (currentPlatform.x / platforms[platforms.length-1].x) * 100
+                );
+                updateHUD();
+            }
+
+            if(game.progress >= 100) {
+                game.level++;
+                initLevel(game.level);
+            }
+        }
+
+        function updateHUD() {
+            document.getElementById('level').textContent = game.level;
+            document.getElementById('progress').textContent = game.progress;
+        }
+
+        // Запуск
+        createStars();
+        initLevel(1);
         gameLoop();
     </script>
 </body>
